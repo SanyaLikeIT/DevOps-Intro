@@ -31,7 +31,7 @@ A 10-week practical introduction to DevOps at Innopolis University. You will pac
 | — | Lab 12 | WebAssembly Containers *(bonus)* | TinyGo + Spin/WAGI; perf comparison vs Docker |
 
 ---
-
+<!-- Lab 3 path filter verification -->
 ## The Project: QuickNotes
 
 A small Go 1.24 notes API. You don't write the app — you **operationalize** it.
