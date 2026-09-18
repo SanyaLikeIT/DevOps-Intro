@@ -6,8 +6,8 @@ This submission uses GitHub Actions because the repository and pull requests are
 hosted on GitHub, so the checks and branch rules are available in the same place.
 The baseline pipeline, deliberate failure, recovery on GitHub, required
 status checks, Go-version matrix, aggregate gate, and cache measurements have
-been verified. Docs-only path filtering is configured; its separate demonstration
-PR and the performance bonus are still in progress.
+been verified. Docs-only path filtering is now implemented; its separate
+demonstration PR and the performance bonus are still in progress.
 
 - [Course draft PR](https://github.com/inno-devops-labs/DevOps-Intro/pull/1603)
 - [Fork validation PR](https://github.com/SanyaLikeIT/DevOps-Intro/pull/2)
@@ -199,13 +199,15 @@ matrix cell names.
 
 The workflow trigger now includes only `app/**` and `.github/workflows/ci.yml`
 for both pushes to `main` and pull requests targeting `main`. A documentation-only
-change outside those paths should therefore create no CI run. The demonstration
-uses a separate docs-only PR based on `main`, because the Lab 3 feature PR already
-contains application and workflow changes; GitHub evaluates the pull request diff,
-not only the newest commit.
+change outside those paths should therefore create no CI run. The filter itself
+is committed on the Lab 3 branch first so its CI validation still runs because the
+workflow file changed. The separate skip demonstration must be performed only after
+this workflow version is present on the fork's `main`; otherwise a docs-only branch
+would not actually exercise the new filter.
 
-TODO: Add the separate docs-only PR URL/evidence after verifying that no CI run
-is created.
+TODO: After the filtered workflow is present on the fork's `main`, create a
+docs-only branch from that `main`, open a PR back to `main`, and record the PR URL
+and evidence that no CI run is created.
 
 ### Task 2 design questions
 
