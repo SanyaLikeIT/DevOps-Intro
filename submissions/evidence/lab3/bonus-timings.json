@@ -8,6 +8,13 @@
   },
   "bonus_2": {
     "optimization": "Set GOFLAGS=-buildvcs=false",
+    "total_duration_seconds": 37,
+    "comparison_to_bonus_1_seconds": -4,
+    "comparison_to_pre_bonus_median_seconds": -3,
+    "status": "measured on hosted GitHub runner"
+  },
+  "bonus_3": {
+    "optimization": "Skip golangci-lint when a newly pushed update contains no lint-relevant app changes",
     "total_duration_seconds": null,
     "status": "awaiting hosted CI measurement"
   }

@@ -267,9 +267,27 @@ so disabling it removes unnecessary Git metadata work while preserving the code
 checks. The change is intentionally small; its actual effect must be measured on
 the hosted runner rather than assumed.
 
-TODO: After the pushed run completes, record the total wall-clock duration and
-compare it with the 41-second Bonus 1 run and the 40-second pre-bonus median.
+The hosted run after this change completed in **37 seconds**. That is 4 seconds
+faster than the 41-second Bonus 1 run and 3 seconds faster than the 40-second
+pre-bonus matrix median. The sample is still too small to attribute all four
+seconds to VCS stamping alone, because hosted-runner queueing and provisioning
+vary between runs, but the result is directionally consistent with removing work
+that this CI pipeline does not need.
 
-TODO: Apply and measure at least one additional bonus optimization, provide the
-required before/after table, and write the four-to-six-sentence bottleneck
-analysis.
+### Bonus optimization 3: skip lint for documentation-only updates
+
+The third bonus optimization keeps the lint job as a required dependency but
+avoids Go setup and `golangci-lint` when a newly pushed update contains no
+lint-relevant changes under `app/`. For pull-request synchronize events it
+compares the previous and new head SHAs supplied by the event; for pushes it
+compares the pushed range. Markdown-only changes under `app/`, workflow-only
+changes, and submission-only changes therefore leave the lint job green while
+skipping the expensive linter steps. Initial PR events and any case where the
+comparison range cannot be verified conservatively fall back to running lint.
+
+TODO: After this workflow version is pushed, record the hosted total duration and
+the `lint` job duration. Confirm in the job log that the linter step was skipped
+for this documentation/workflow-only update.
+
+TODO: After all three bonus measurements are available, add the required
+before/after table and the four-to-six-sentence bottleneck analysis.
