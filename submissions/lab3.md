@@ -4,8 +4,9 @@
 
 This submission uses GitHub Actions because the repository and pull requests are
 hosted on GitHub, so the checks and branch rules are available in the same place.
-The baseline pipeline and deliberate failure have been verified. Recovery on
-GitHub, Task 2, and the performance bonus are still in progress.
+The baseline pipeline, deliberate failure, recovery on GitHub, and required
+status checks have been verified. Task 2 and the performance bonus are still
+in progress.
 
 - [Course draft PR](https://github.com/inno-devops-labs/DevOps-Intro/pull/1603)
 - [Fork validation PR](https://github.com/SanyaLikeIT/DevOps-Intro/pull/2)
@@ -16,7 +17,8 @@ The workflow runs three independent jobs on `ubuntu-24.04` with Go `1.24`:
 `go vet ./...`, `go test -race -count=1 ./...`, and golangci-lint `v2.5.0`.
 All checks run against `app/`. Actions are pinned to full commit SHAs, and
 `GITHUB_TOKEN` has only `contents: read` permission. Both setup-go caching and
-the lint action's cache are disabled for the baseline.
+the lint action's cache were disabled for the baseline; setup-go caching is now
+enabled for the next measurement.
 
 | Evidence | Result |
 |---|---|
@@ -24,7 +26,7 @@ the lint action's cache are disabled for the baseline.
 | Deliberate failure commit | `11475036c6b3aa2145a16a66bca12fff83881944` changed the expected health note count from one to two. |
 | [Failed run 35305763786](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35305763786) | `test` failed; `vet` and `lint` succeeded. |
 | Recovery commit | `e8f856422d2a6912414234ef42c03a7c624c8a2e` restores the original assertion. |
-| Recovery validation | Local `go vet ./...` and `go test -race -count=1 ./...` passed using Go 1.24.13. TODO: Verify the pushed recovery run and link it here. |
+| Recovery validation | Local `go vet ./...` and `go test -race -count=1 ./...` passed using Go 1.24.13. [Recovery run 35306448411](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35306448411) passed all three jobs at commit `43ac23b6129c065beb2e65f7bcff2980f6f78f60`. |
 
 The active ruleset on the fork's `main` requires `vet`, `test`, and `lint` from
 GitHub Actions and requires the branch to be up to date. These settings were
@@ -80,26 +82,52 @@ disables those artifact downloads. See the
 
 ## Task 2: Timing and optimizations in progress
 
-The first baseline run was created at `2026-09-18T03:55:51Z`; its final job
-completed at `2026-09-18T03:56:27Z`, giving **36 seconds** from run creation to
-last job completion, including initial queue time. This is one observation,
-not a median. Per-job times from the jobs API were 23 seconds for vet,
-33 seconds for test, and 23 seconds for lint; concurrent times must not be added.
+Two successful baseline runs took **36 seconds** and **32 seconds**, giving a
+**34-second median**. Each measurement spans run creation to the last job
+completion and includes initial queue time. Both runs used identical application
+code and workflow settings; the recovery head also added documentation. The
+deliberately failed run is excluded. This two-run sample is smaller than the
+recommended three to five runs: authenticated reruns were unavailable, so these
+results are preliminary rather than a stable performance estimate.
+
+[Baseline timing evidence](evidence/lab3/baseline-timings.json) records the run
+URLs, revisions, timestamps, job results, and per-step timings returned by the
+GitHub API. Job times overlap and must not be added to calculate wall-clock time.
+The interval before a job starts combines queueing and provisioning; the API does
+not isolate runner provisioning time.
 
 | Scenario | Wall-clock |
 |---|---:|
-| Baseline: no cache, single Go version, no path filter | 36 s (one run; additional measurements pending) |
-| With cache | TODO: Implement and measure. |
+| Baseline: no cache, single Go version, no path filter | 34 s (median of two successful runs: 36 s, 32 s) |
+| With cache | TODO: Push, distinguish cold and warm cache runs, and measure. |
 | With cache and matrix | TODO: Implement and measure. |
 
 QuickNotes currently has no third-party module dependencies: `app/go.mod` has
 no `require` block and there is no `app/go.sum`. Module-download caching therefore
 has no dependency downloads to accelerate; build-cache effects must be measured.
 
-TODO: Implement and verify caching, the Go 1.23/1.24 matrix, the aggregate gate,
-updated required checks, and docs-only path filtering. Answer questions f-h
-using the final implementation and collect additional baseline runs before
-enabling optimizations.
+### Cache implementation
+
+The three jobs now use setup-go caching for the Go module and build caches.
+The dependency-path input hashes `app/go.mod` and `app/go.sum`; the existing
+`go.mod` supplies a deterministic input even though `go.sum` is absent. If
+third-party dependencies are introduced later, their checksums will also
+participate in the key. The pinned action includes the operating system,
+architecture, Go version, and dependency-file hash in its cache key. Go itself
+validates cached compilation results against source and build inputs.
+
+The jobs share a cache key for the same platform, toolchain, and dependency
+inputs. Concurrent cache saves can race: the first successful save supplies the
+entry, so a later run may still compile packages missing from that entry. The
+linter action's separate cache remains disabled to isolate this change. A first
+run may only populate the cache; no cache hit or speed improvement is claimed
+until a subsequent run confirms it. See the pinned setup-go
+[cache implementation](https://github.com/actions/setup-go/blob/d35c59abb061a4a6fb18e82ac0862c26744d6ab5/src/cache-restore.ts)
+and [cache directories](https://github.com/actions/setup-go/blob/d35c59abb061a4a6fb18e82ac0862c26744d6ab5/src/package-managers.ts).
+
+TODO: Verify cache restoration on GitHub, implement the Go 1.23/1.24 matrix,
+the aggregate gate, updated required checks, and docs-only path filtering.
+Answer questions f-h using the final implementation.
 
 ## Performance bonus in progress
 
