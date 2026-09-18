@@ -5,9 +5,11 @@
 This submission uses GitHub Actions because the repository and pull requests are
 hosted on GitHub, so the checks and branch rules are available in the same place.
 The baseline pipeline, deliberate failure, recovery on GitHub, required
-status checks, Go-version matrix, aggregate gate, and cache measurements have
-been verified. Docs-only path filtering is now implemented; its separate
-demonstration PR and the performance bonus are still in progress.
+status checks, Go-version matrix, aggregate gate, cache measurements, and all
+three bonus optimizations have been verified. Docs-only path filtering is
+implemented; one separate docs-only PR on the fork is still required to record
+that the workflow is not triggered when the filtered workflow is already on
+`main`.
 
 - [Course draft PR](https://github.com/inno-devops-labs/DevOps-Intro/pull/1603)
 - [Fork validation PR](https://github.com/SanyaLikeIT/DevOps-Intro/pull/2)
@@ -29,10 +31,12 @@ enabled for the next measurement.
 | Recovery commit | `e8f856422d2a6912414234ef42c03a7c624c8a2e` restores the original assertion. |
 | Recovery validation | Local `go vet ./...` and `go test -race -count=1 ./...` passed using Go 1.24.13. [Recovery run 35306448411](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35306448411) passed all three jobs at commit `43ac23b6129c065beb2e65f7bcff2980f6f78f60`. |
 
-The active ruleset on the fork's `main` requires `vet`, `test`, and `lint` from
-GitHub Actions and requires the branch to be up to date. These settings were
-confirmed through the public branch-rules API on September 18, 2026;
-the relevant response is saved in [required-checks.json](evidence/lab3/required-checks.json).
+At the baseline stage, the fork ruleset required `vet`, `test`, and `lint` and
+required the branch to be up to date. Those baseline settings were confirmed
+through the public branch-rules API on September 18, 2026; the relevant response
+is saved in [required-checks.json](evidence/lab3/required-checks.json). After the
+Go-version matrix was added, the rule was updated to require only the aggregate
+`ci-ok` check while keeping the strict up-to-date requirement.
 
 ![Required status checks and strict update policy](evidence/lab3/required-checks.png)
 
@@ -81,7 +85,7 @@ not define stage ordering or a scheduling dependency graph. `dependencies: []`
 disables those artifact downloads. See the
 [GitLab YAML reference](https://docs.gitlab.com/ci/yaml/#dependencies).
 
-## Task 2: Timing and optimizations in progress
+## Task 2: Timing and optimizations
 
 Two successful baseline runs took **36 seconds** and **32 seconds**, giving a
 **34-second median**. Each measurement spans run creation to the last job
@@ -238,7 +242,7 @@ should still be treated as untrusted input and must never contain secrets or
 credentials. See the
 [GitHub dependency caching reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
-## Performance bonus in progress
+## Performance bonus
 
 ### Bonus optimization 1: enable golangci-lint analysis caching
 
@@ -285,9 +289,42 @@ changes, and submission-only changes therefore leave the lint job green while
 skipping the expensive linter steps. Initial PR events and any case where the
 comparison range cannot be verified conservatively fall back to running lint.
 
-TODO: After this workflow version is pushed, record the hosted total duration and
-the `lint` job duration. Confirm in the job log that the linter step was skipped
-for this documentation/workflow-only update.
+The hosted run after this change completed in **39 seconds**, and the `lint`
+job completed in **5 seconds**. The run remained fully green (`vet` for Go 1.23
+and 1.24, `test` for Go 1.23 and 1.24, `lint`, and `ci-ok`). Compared with the
+20-second lint job observed after Bonus optimization 1, the documentation-only
+update avoided about 15 seconds inside the lint job. The total workflow was two
+seconds slower than the preceding 37-second run because hosted-runner queueing
+and provisioning vary between runs, so the job-level reduction is the more useful
+measurement here.
 
-TODO: After all three bonus measurements are available, add the required
-before/after table and the four-to-six-sentence bottleneck analysis.
+![Bonus optimization 3: documentation-only update skipped expensive lint work](evidence/lab3/bonus3-docs-only-run.png)
+
+### Bonus before/after measurements
+
+| Optimization applied | Before (s) | After (s) | Saving |
+|---|---:|---:|---:|
+| Enable golangci-lint analysis cache | 40 | 41 | -1 s |
+| Set `GOFLAGS=-buildvcs=false` | 41 | 37 | 4 s |
+| Skip lint for documentation-only updates | 37 | 39 | -2 s total; lint job dropped from 20 s to 5 s |
+| **Total wall-clock** | **40** | **39** | **1 s** |
+
+The before/after wall-clock numbers are intentionally reported as observed rather
+than normalized. Hosted GitHub runners introduce enough queueing and provisioning
+noise that a useful local optimization can still produce a slightly slower total
+run.
+
+### Bottleneck analysis
+
+The remaining wall-clock time is dominated by hosted-runner startup and toolchain
+setup rather than QuickNotes itself; the application checks are small and the
+repository has no third-party Go modules. The documentation-only lint optimization
+shows this clearly: the lint job fell from 20 seconds to 5 seconds, yet the total
+workflow still varied around the high-30-second range. There is little application
+code to remove for meaningful additional savings; reducing package/test startup
+work or adding fewer dependencies would help only if QuickNotes became materially
+larger. A self-hosted runner with a warm toolchain could reduce infrastructure
+overhead, but that changes the execution environment rather than the application.
+For this project I would stop optimizing around 40 seconds because the pipeline is
+already far below the 90-second target and further hosted-runner tuning would add
+complexity for marginal benefit.
