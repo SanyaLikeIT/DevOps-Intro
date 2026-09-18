@@ -240,6 +240,19 @@ credentials. See the
 
 ## Performance bonus in progress
 
-TODO: Preserve actual step timing data, apply and measure at least three
-additional optimizations, provide a before/after table, and write the required
-four-to-six-sentence bottleneck analysis.
+### Bonus optimization 1: enable golangci-lint analysis caching
+
+The baseline matrix intentionally disabled the linter action cache so the Task 2
+Go cache measurement was isolated. The first bonus optimization enables the
+official golangci-lint action cache while leaving the pinned linter version and
+all required checks unchanged. The action caches `~/.cache/golangci-lint` and
+keys the entry using the runner OS, working directory, invalidation interval,
+and `go.mod` hash. This should mainly reduce repeated lint analysis work; any
+wall-clock saving must be measured on the hosted runner rather than assumed.
+
+TODO: After the pushed run completes, record its wall-clock duration and lint
+step timing, then compare it with the 40-second pre-bonus matrix median.
+
+TODO: Apply and measure at least two additional bonus optimizations, provide the
+required before/after table, and write the four-to-six-sentence bottleneck
+analysis.
