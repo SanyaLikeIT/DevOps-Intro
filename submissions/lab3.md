@@ -4,9 +4,10 @@
 
 This submission uses GitHub Actions because the repository and pull requests are
 hosted on GitHub, so the checks and branch rules are available in the same place.
-The baseline pipeline, deliberate failure, recovery on GitHub, and required
-status checks have been verified. Task 2 and the performance bonus are still
-in progress.
+The baseline pipeline, deliberate failure, recovery on GitHub, required
+status checks, Go-version matrix, aggregate gate, and cache measurements have
+been verified. Docs-only path filtering is configured; its separate demonstration
+PR and the performance bonus are still in progress.
 
 - [Course draft PR](https://github.com/inno-devops-labs/DevOps-Intro/pull/1603)
 - [Fork validation PR](https://github.com/SanyaLikeIT/DevOps-Intro/pull/2)
@@ -100,7 +101,7 @@ not isolate runner provisioning time.
 |---|---:|
 | Baseline: no cache, single Go version, no path filter | 34 s (median of two successful runs: 36 s, 32 s) |
 | With cache | 28 s (one warm-cache run); 30 s for initial population. |
-| With cache and matrix | TODO: Implement and measure. |
+| With cache and matrix | 40 s median (three successful attempts: 52 s, 40 s, 40 s). |
 
 QuickNotes currently has no third-party module dependencies: `app/go.mod` has
 no `require` block and there is no `app/go.sum`. Module-download caching therefore
@@ -175,15 +176,65 @@ Changing `go.mod` invalidates the previous cache key. The first matrix run must
 be identified as a population run for the new dependency hash, even for Go 1.24.
 A later run is needed for a warm-cache matrix comparison.
 
-TODO: After pushing and observing `ci-ok`, replace the required `vet`, `test`,
-and `lint` checks in the fork ruleset with only `ci-ok`, retaining the strict
-up-to-date requirement. Keep the existing requirements until the new check is
-available; their names do not match matrix cells and will temporarily remain
-pending. Verify all four matrix cells and the aggregate job on GitHub.
+[Run 35310859057](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35310859057)
+completed the matrix successfully on all three measured attempts. GitHub reported
+green `vet (1.23)`, `vet (1.24)`, `test (1.23)`, `test (1.24)`, `lint`, and
+`ci-ok` checks. The original attempt took **52 seconds** and two full reruns each
+took **40 seconds**, giving a **40-second median**. The repeated attempts reduce
+noise compared with a single sample, although hosted-runner queueing and
+provisioning still vary between runs.
 
-TODO: Verify the pushed matrix, update required checks, and implement and
-demonstrate docs-only path filtering. Answer questions f-h using the final
-implementation.
+[Matrix timing evidence](evidence/lab3/matrix-timings.json) records the three
+observed wall-clock durations used for the median.
+
+![Successful Go-version matrix and aggregate gate](evidence/lab3/matrix-run.png)
+
+The fork ruleset now requires only `ci-ok` and still requires branches to be up
+to date before merging. This avoids coupling branch protection to the individual
+matrix cell names.
+
+![Branch protection requiring ci-ok](evidence/lab3/required-check-ci-ok.png)
+
+### Docs-only path filtering
+
+The workflow trigger now includes only `app/**` and `.github/workflows/ci.yml`
+for both pushes to `main` and pull requests targeting `main`. A documentation-only
+change outside those paths should therefore create no CI run. The demonstration
+uses a separate docs-only PR based on `main`, because the Lab 3 feature PR already
+contains application and workflow changes; GitHub evaluates the pull request diff,
+not only the newest commit.
+
+TODO: Add the separate docs-only PR URL/evidence after verifying that no CI run
+is created.
+
+### Task 2 design questions
+
+**f) Why cache deterministic inputs instead of arbitrary outputs?** A dependency
+cache should be reproducible from declared inputs. For Go modules, `go.sum` and
+`go.mod` identify the dependency graph, so a changed dependency description
+produces a different cache key. Build outputs are more environment-sensitive:
+toolchain version, operating system, architecture, build flags, and source code
+can all affect them. Caching arbitrary outputs without those inputs in the key can
+restore stale or incompatible data. `actions/setup-go` incorporates the platform,
+Go version, and dependency-file hash into its cache key, which is safer than a
+hand-written broad key.
+
+**g) What does `fail-fast: false` change?** GitHub Actions normally cancels other
+matrix cells after one non-experimental cell fails. With `fail-fast: false`, all
+Go 1.23 and 1.24 cells finish, so the failure report shows whether the problem is
+version-specific or universal. `fail-fast: true` is useful when later cells are
+expensive and one failure already makes the result unusable, so saving CI time is
+more valuable than collecting the full compatibility picture.
+
+**h) What is the cache-poisoning risk?** A poisoned cache can contain attacker-
+controlled files that a later trusted workflow restores and executes or otherwise
+trusts. GitHub limits this with cache scope rules: `pull_request` caches are stored
+under the PR merge ref and cannot be restored by the base branch or unrelated PRs.
+GitHub also gives low-trust triggers read-only access to the default branch cache
+scope unless a workflow explicitly opts into write-capable cache access. Caches
+should still be treated as untrusted input and must never contain secrets or
+credentials. See the
+[GitHub dependency caching reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
 
 ## Performance bonus in progress
 
