@@ -99,7 +99,7 @@ not isolate runner provisioning time.
 | Scenario | Wall-clock |
 |---|---:|
 | Baseline: no cache, single Go version, no path filter | 34 s (median of two successful runs: 36 s, 32 s) |
-| With cache | TODO: Push, distinguish cold and warm cache runs, and measure. |
+| With cache | 30 s (first population run); warm-cache measurement pending. |
 | With cache and matrix | TODO: Implement and measure. |
 
 QuickNotes currently has no third-party module dependencies: `app/go.mod` has
@@ -124,6 +124,27 @@ run may only populate the cache; no cache hit or speed improvement is claimed
 until a subsequent run confirms it. See the pinned setup-go
 [cache implementation](https://github.com/actions/setup-go/blob/d35c59abb061a4a6fb18e82ac0862c26744d6ab5/src/cache-restore.ts)
 and [cache directories](https://github.com/actions/setup-go/blob/d35c59abb061a4a6fb18e82ac0862c26744d6ab5/src/package-managers.ts).
+
+### First cache population run
+
+[Run 35306668705](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35306668705)
+passed all three jobs at commit `20eccd7f283b2f24683d748bff77d37fae04ff1d`.
+It took **30 seconds**, measured from run creation to final job completion.
+The [API evidence](evidence/lab3/cache-cold-run.json) includes all job and step
+timestamps plus the cache inventory after the run.
+
+GitHub reports cache ID `7832179942`, scoped to `refs/pull/2/merge`, with
+20,777,241 bytes stored. Its key identifies Ubuntu 24, Go 1.24.13, and the
+current dependency-input hash. The entry was created at
+`2026-09-18T04:22:14.943621Z`, after all three Go setup steps completed.
+This establishes cache population, not a warm-cache hit. The difference from
+the 34-second baseline median cannot be attributed to restored cache data;
+runner variation and the small sample also affect the result.
+
+The next documentation-only push keeps the application, workflow, and dependency
+inputs unchanged. Path filtering is not enabled yet, so that push triggers a
+comparable run on the same PR with the existing cache available. Record its
+wall-clock time and verify cache access before adding the version matrix.
 
 TODO: Verify cache restoration on GitHub, implement the Go 1.23/1.24 matrix,
 the aggregate gate, updated required checks, and docs-only path filtering.
