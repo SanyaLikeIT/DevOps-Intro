@@ -1,0 +1,14 @@
+{
+  "pre_bonus_matrix_median_seconds": 40,
+  "bonus_1": {
+    "optimization": "Enable golangci-lint analysis cache",
+    "total_duration_seconds": 41,
+    "lint_job_duration_seconds": 20,
+    "evidence": "bonus1-lint-cache-run.png"
+  },
+  "bonus_2": {
+    "optimization": "Set GOFLAGS=-buildvcs=false",
+    "total_duration_seconds": null,
+    "status": "awaiting hosted CI measurement"
+  }
+}

@@ -17,6 +17,7 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
+  GOFLAGS: '-buildvcs=false'
 
 defaults:
   run:

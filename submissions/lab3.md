@@ -247,12 +247,29 @@ Go cache measurement was isolated. The first bonus optimization enables the
 official golangci-lint action cache while leaving the pinned linter version and
 all required checks unchanged. The action caches `~/.cache/golangci-lint` and
 keys the entry using the runner OS, working directory, invalidation interval,
-and `go.mod` hash. This should mainly reduce repeated lint analysis work; any
-wall-clock saving must be measured on the hosted runner rather than assumed.
+and `go.mod` hash.
 
-TODO: After the pushed run completes, record its wall-clock duration and lint
-step timing, then compare it with the 40-second pre-bonus matrix median.
+The first hosted run after enabling the cache completed in **41 seconds**, while
+the `lint` job itself took **20 seconds**. The pre-bonus cache+matrix median was
+40 seconds, so this sample shows **no wall-clock improvement**; it is one second
+slower, which is well within normal hosted-runner variation. The useful result is
+that linter caching is enabled without changing correctness, but QuickNotes is too
+small for this single sample to demonstrate a measurable end-to-end saving.
 
-TODO: Apply and measure at least two additional bonus optimizations, provide the
+![Bonus optimization 1: successful run with linter cache enabled](evidence/lab3/bonus1-lint-cache-run.png)
+
+### Bonus optimization 2: disable Go VCS stamping in CI
+
+The second bonus optimization sets `GOFLAGS=-buildvcs=false` for the workflow.
+Go commands can otherwise inspect repository metadata when producing build
+information. CI does not consume that VCS stamping for vet, race tests, or lint,
+so disabling it removes unnecessary Git metadata work while preserving the code
+checks. The change is intentionally small; its actual effect must be measured on
+the hosted runner rather than assumed.
+
+TODO: After the pushed run completes, record the total wall-clock duration and
+compare it with the 41-second Bonus 1 run and the 40-second pre-bonus median.
+
+TODO: Apply and measure at least one additional bonus optimization, provide the
 required before/after table, and write the four-to-six-sentence bottleneck
 analysis.
