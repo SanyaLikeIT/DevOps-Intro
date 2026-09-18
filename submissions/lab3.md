@@ -13,7 +13,7 @@ in progress.
 
 ## Task 1: Baseline gate and evidence
 
-The workflow runs three independent jobs on `ubuntu-24.04` with Go `1.24`:
+The baseline workflow ran three independent jobs on `ubuntu-24.04` with Go `1.24`:
 `go vet ./...`, `go test -race -count=1 ./...`, and golangci-lint `v2.5.0`.
 All checks run against `app/`. Actions are pinned to full commit SHAs, and
 `GITHUB_TOKEN` has only `contents: read` permission. Both setup-go caching and
@@ -99,7 +99,7 @@ not isolate runner provisioning time.
 | Scenario | Wall-clock |
 |---|---:|
 | Baseline: no cache, single Go version, no path filter | 34 s (median of two successful runs: 36 s, 32 s) |
-| With cache | 30 s (first population run); warm-cache measurement pending. |
+| With cache | 28 s (one warm-cache run); 30 s for initial population. |
 | With cache and matrix | TODO: Implement and measure. |
 
 QuickNotes currently has no third-party module dependencies: `app/go.mod` has
@@ -141,14 +141,49 @@ This establishes cache population, not a warm-cache hit. The difference from
 the 34-second baseline median cannot be attributed to restored cache data;
 runner variation and the small sample also affect the result.
 
-The next documentation-only push keeps the application, workflow, and dependency
-inputs unchanged. Path filtering is not enabled yet, so that push triggers a
-comparable run on the same PR with the existing cache available. Record its
-wall-clock time and verify cache access before adding the version matrix.
+### Existing-cache run
 
-TODO: Verify cache restoration on GitHub, implement the Go 1.23/1.24 matrix,
-the aggregate gate, updated required checks, and docs-only path filtering.
-Answer questions f-h using the final implementation.
+[Run 35306899232](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/35306899232)
+passed all jobs at commit `f6008b539f74532e804be50ecc6249f53b9db27b` in **28 seconds**.
+Only documentation changed, so the application, workflow, and dependency inputs
+matched the population run. The [API evidence](evidence/lab3/cache-warm-run.json)
+shows the same cache ID and creation timestamp, with `last_accessed_at` advancing
+to `2026-09-18T04:25:27.116605Z` during this run. This confirms reuse of the
+existing entry at the API level. Downloading job logs requires authentication,
+so the inventory does not establish which individual jobs restored it.
+
+The observed warm run is 6 seconds below the baseline median, but this is only
+one warm sample against two baseline samples, not a reliable causal estimate.
+Queueing and runner differences remain uncontrolled.
+
+### Go version matrix and aggregate gate
+
+The vet and test jobs now each have parallel Go 1.23 and 1.24 cells with
+`fail-fast: false`; lint stays on Go 1.24. The `ci-ok` job uses `always()` and
+waits for all three job groups. It succeeds only if each dependency succeeds,
+so failure, cancellation, or an unexpected skipped dependency prevents a green
+gate. It runs from the workspace root because it does not check out the app.
+
+The original `go 1.24` directive would prevent a real Go 1.23 compatibility
+check or trigger an automatic toolchain upgrade. The module minimum is now
+Go 1.23, and CI sets `GOTOOLCHAIN=local` to use the toolchain installed for each
+cell. Local Go 1.23 vet and race-test validation passes; both matrix versions will
+be verified by the pushed CI run. See the official
+[Go toolchain documentation](https://go.dev/doc/toolchain).
+
+Changing `go.mod` invalidates the previous cache key. The first matrix run must
+be identified as a population run for the new dependency hash, even for Go 1.24.
+A later run is needed for a warm-cache matrix comparison.
+
+TODO: After pushing and observing `ci-ok`, replace the required `vet`, `test`,
+and `lint` checks in the fork ruleset with only `ci-ok`, retaining the strict
+up-to-date requirement. Keep the existing requirements until the new check is
+available; their names do not match matrix cells and will temporarily remain
+pending. Verify all four matrix cells and the aggregate job on GitHub.
+
+TODO: Verify the pushed matrix, update required checks, and implement and
+demonstrate docs-only path filtering. Answer questions f-h using the final
+implementation.
 
 ## Performance bonus in progress
 
