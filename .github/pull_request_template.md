@@ -1,4 +1,4 @@
-## Goal
+﻿## Goal
 <!-- What does this PR accomplish? 1 sentence. -->
 
 ## Changes
