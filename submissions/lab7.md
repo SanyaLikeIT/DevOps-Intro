@@ -184,23 +184,53 @@ Thu 2026-09-24 20:52:37 UTC 4min 47s Thu 2026-09-24 20:47:37 UTC   12s ago ansib
 
 The installed `ansible-pull` is 2.16.3, and Git is 2.43.0.
 
-### B.3 Initial pull result
+### B.3 Successful initial pull
 
-At `2026-09-24T20:47:37+00:00`, the timer started `ansible-pull.service`. The public repository clone succeeded, but checkout of `feature/lab7` failed because the branch had not been pushed. The host's HTTPS push requested unavailable interactive credentials; its SSH GitHub key was rejected. The branch and timer demonstration require GitHub push access. The journal reported:
+After `feature/lab7` was pushed, a manual `systemctl start ansible-pull.service` verified the service before the timed experiment. The VM fetched commit `1f9ede7a611f738896f1ea90a023f77ee8cd0c52`, ran the QuickNotes playbook from the checkout, and completed successfully:
 
 ```text
-2026-09-24T20:47:42+00:00 quicknotes-vm ansible-pull[4587]:     "msg": "Failed to checkout feature/lab7",
-2026-09-24T20:47:42+00:00 quicknotes-vm ansible-pull[4587]:     "stderr": "error: pathspec 'feature/lab7' did not match any file(s) known to git\n",
-2026-09-24T20:47:42+00:00 quicknotes-vm systemd[1]: ansible-pull.service: Failed with result 'exit-code'.
+2026-09-24T21:05:27+00:00 quicknotes-vm systemd[1]: Starting ansible-pull.service - Reconcile QuickNotes configuration with ansible-pull...
+2026-09-24T21:05:50+00:00 quicknotes-vm ansible-pull[5133]:     "after": "1f9ede7a611f738896f1ea90a023f77ee8cd0c52",
+2026-09-24T21:05:50+00:00 quicknotes-vm ansible-pull[5133]: PLAY [Deploy QuickNotes] *******************************************************
+2026-09-24T21:05:50+00:00 quicknotes-vm ansible-pull[5133]: PLAY RECAP *********************************************************************
+2026-09-24T21:05:50+00:00 quicknotes-vm ansible-pull[5133]: localhost                  : ok=7    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+2026-09-24T21:05:50+00:00 quicknotes-vm systemd[1]: Finished ansible-pull.service - Reconcile QuickNotes configuration with ansible-pull.
 ```
 
-### B.4 Convergence timeline
+The timer had earlier attempted to pull while the branch was absent; its checkout failed. That failure was resolved by the branch push, as shown by this successful run.
 
-Awaiting authenticated push of `feature/lab7`; no convergence time is claimed.
+### B.4 Timer-driven convergence timeline
+
+Only `restart_sec` changed from `2s` to `4s` in signed commit `0f77b4700b810d4aeb764bda37936695f776f3d5`. No host `ansible-playbook` or manual service start was used between the demonstration push and the timer applying that commit.
+
+| Event | Observed timestamp (UTC) | Evidence |
+|---|---|---|
+| Commit created | 2026-09-24 21:06:05 | `git show -s --format=%cI` |
+| Push finished | 2026-09-24 21:06:18 | Host `date --iso-8601=seconds` after successful `git push origin feature/lab7` |
+| Timer fired | 2026-09-24 21:10:32 | `journalctl -u ansible-pull.service` |
+| Pull and play completed | 2026-09-24 21:10:38 | Journal showed checkout of `0f77b47`, changed template, restart handler, successful recap |
+| `RestartSec=4s` observed in VM | 2026-09-24 21:11:10 | `systemctl cat quicknotes` |
+
+The pull play completed **4 minutes 20 seconds** after push. The changed VM unit was independently observed **4 minutes 52 seconds** after push, within five minutes. `/health` returned HTTP 200.
+
+Focused journal excerpt from the timer run:
+
+```text
+2026-09-24T21:10:32+00:00 quicknotes-vm systemd[1]: Starting ansible-pull.service - Reconcile QuickNotes configuration with ansible-pull...
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]:     "after": "0f77b4700b810d4aeb764bda37936695f776f3d5",
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: PLAY [Deploy QuickNotes] *******************************************************
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: TASK [Install QuickNotes systemd unit] *****************************************
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: changed: [localhost]
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: RUNNING HANDLER [restart quicknotes] *******************************************
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: changed: [localhost]
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: PLAY RECAP *********************************************************************
+2026-09-24T21:10:38+00:00 quicknotes-vm ansible-pull[5772]: localhost                  : ok=8    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+2026-09-24T21:10:38+00:00 quicknotes-vm systemd[1]: Finished ansible-pull.service - Reconcile QuickNotes configuration with ansible-pull.
+```
 
 ### B.5 Final restored state
 
-The currently installed QuickNotes unit remains at `ADDR=:8080`, `RestartSec=2s` and serves four seeded notes. Timed pull convergence remains unproven.
+Signed commit `5a32835d851a85da13e1311d2b89197dfd6b1e1f` restored `restart_sec: "2s"` and was pushed to `feature/lab7`. After the timer demonstration, a **manual** `systemctl start ansible-pull.service` reconciled this final commit. The service reported `Result=success` and `ExecMainStatus=0` at `2026-09-24 21:12:05 UTC`; the checkout HEAD matched `5a32835`. The installed unit showed `ADDR=:8080` and `RestartSec=2s`; both `quicknotes` and `ansible-pull.timer` were active, and `/health` returned HTTP 200. A final unchanged host playbook run returned `ok=7 changed=0 failed=0`; `/notes` returned HTTP 200 with the same four seeded titles.
 
 ### B.6 Design questions
 
