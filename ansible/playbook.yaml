@@ -11,7 +11,7 @@
     seed_path: /var/lib/quicknotes/seed.json
     data_path: /var/lib/quicknotes/notes.json
     listen_addr: ":8080"
-    restart_sec: "2s"
+    restart_sec: "4s"
   tasks:
     - name: Create QuickNotes system group
       ansible.builtin.group:
