@@ -155,8 +155,8 @@ I would identify the component returning 502, usually the proxy, then check whet
 Port 8080 was free before the experiment. I started two instances with the same bind address from `app/`:
 
 ```bash
-GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run .
-GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run .
+GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run . > /tmp/qn-first.log 2>&1 &
+GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run . > /tmp/qn-broken.log 2>&1 &
 ```
 
 The first instance occupied port 8080:
@@ -220,7 +220,7 @@ Decision: The existing instance was healthy and reachable locally even though th
 
 Command: `sudo -n iptables -L -n -v 2>/dev/null || sudo -n nft list ruleset 2>/dev/null || true`
 
-Selected actual output:
+Selected actual output, checked after sudo access became available:
 
 ```text
 Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
@@ -265,22 +265,28 @@ ss -tlnp | grep :8080 || true
 ps -o pid,ppid,cmd -p 168884
 kill 168884
 ss -tlnp | grep :8080 || true
-GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run .
+GOTOOLCHAIN=go1.23.0 ADDR=:8080 go run . > /tmp/qn-repaired.log 2>&1 &
 ss -tlnp | grep :8080
 curl -s http://localhost:8080/health
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health
 ```
 
-Relevant actual output:
+After terminating the `go run` parent, the original child still owned the port:
 
 ```text
-# after terminating the go run parent
 LISTEN 0      4096               *:8080             *:*    users:(("quicknotes",pid=168884,fd=3))
-# identified compiled child
+```
+
+The child process check returned:
+
+```text
     PID    PPID CMD
  168884    6604 /tmp/go-build3265278485/b001/exe/quicknotes
-# after terminating the compiled child: no listener
-# restarted instance
+```
+
+After terminating that child, `ss -tlnp | grep :8080 || true` produced no output. The restarted service then returned:
+
+```text
 LISTEN 0      4096               *:8080             *:*    users:(("quicknotes",pid=169370,fd=3))
 {"notes":6,"status":"ok"}
 200
@@ -416,4 +422,3 @@ Caddy sent the localhost leaf and its local intermediate. The root was not trust
 ### B.6 TLS 1.0 / 1.1 negotiation
 
 Protocol version negotiation occurs between ClientHello and ServerHello. In this capture, the client's `supported_versions` extension offered TLS 1.3 and 1.2, not TLS 1.0 or 1.1. The server's `supported_versions` extension selected TLS 1.3. Therefore the observed connection could not negotiate TLS 1.0 or 1.1. The lower legacy record and Hello version fields do not override that extension.
-
