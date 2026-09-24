@@ -5,8 +5,11 @@
 This submission uses GitHub Actions because the repository and pull requests are
 hosted on GitHub, so the checks and branch rules are available in the same place.
 The baseline pipeline, deliberate failure, recovery on GitHub, required
-status checks, Go-version matrix, aggregate gate, cache measurements, all
-three bonus optimizations, and docs-only path filtering have been verified.
+status checks, Go-version matrix, aggregate gate, cache measurements, and all
+three bonus optimizations have been verified. Docs-only path filtering is
+implemented; one separate docs-only PR on the fork is still required to record
+that the workflow is not triggered when the filtered workflow is already on
+`main`.
 
 - [Course draft PR](https://github.com/inno-devops-labs/DevOps-Intro/pull/1603)
 - [Fork validation PR](https://github.com/SanyaLikeIT/DevOps-Intro/pull/2)
@@ -198,20 +201,17 @@ matrix cell names.
 
 ### Docs-only path filtering
 
-The workflow trigger includes only `app/**` and `.github/workflows/ci.yml`
-for both pushes to `main` and pull requests targeting `main`. After this filtered
-workflow was merged to the fork's `main`, a separate branch changed only the
-root `README.md` and opened [fork PR #4](https://github.com/SanyaLikeIT/DevOps-Intro/pull/4)
-back to `main`.
+The workflow trigger now includes only `app/**` and `.github/workflows/ci.yml`
+for both pushes to `main` and pull requests targeting `main`. A documentation-only
+change outside those paths should therefore create no CI run. The filter itself
+is committed on the Lab 3 branch first so its CI validation still runs because the
+workflow file changed. The separate skip demonstration must be performed only after
+this workflow version is present on the fork's `main`; otherwise a docs-only branch
+would not actually exercise the new filter.
 
-GitHub reported **0 checks** for that PR and did not start the CI workflow, which
-demonstrates that the docs-only change was excluded by the path filter. Because
-the branch ruleset requires the aggregate `ci-ok` status, GitHub shows
-`ci-ok Expected — Waiting for status to be reported`: the required check cannot
-be produced when the whole workflow is filtered out. The PR is therefore kept
-only as skip evidence and does not need to be merged.
-
-![Docs-only PR skipped by the CI path filter](evidence/lab3/docs-only-path-filter.png)
+TODO: After the filtered workflow is present on the fork's `main`, create a
+docs-only branch from that `main`, open a PR back to `main`, and record the PR URL
+and evidence that no CI run is created.
 
 ### Task 2 design questions
 
