@@ -65,3 +65,31 @@ A single malformed `POST /notes` returned HTTP 400 and did not immediately activ
 **f) Symptom versus cause.** The high HTTP error ratio measures a symptom users experience. High CPU, disk pressure, or container restarts can be possible causes, but paging solely on one of those may produce alerts while requests still succeed. The symptom page tells the on-call to investigate actual failed requests and then find the cause.
 
 **g) Alert fatigue.** An operational review threshold is: if more than 20% of pages in a month have no measurable user impact, investigate and tune the alert. This is a team decision threshold, not a universal rule.
+
+## Bonus — External Synthetic Monitoring
+
+### Public endpoint and synthetic check
+
+An ngrok HTTPS tunnel published the local health-only proxy at `https://mango-banked-cherisher.ngrok-free.dev/health`. The tunnel forwarded to `127.0.0.1:18181`, where [the proxy](../monitoring/scripts/health-proxy.py) accepted only `GET /health` and forwarded that request to QuickNotes. Public `GET /health` returned HTTP 200; public `GET /notes` and `GET /metrics` returned HTTP 404, and `POST /notes` returned HTTP 405. The tunnel did not expose QuickNotes port 8080 directly.
+
+Checkly API check `16d6af48-20ff-496e-87dc-24745197fe5e` requested that HTTPS URL every minute, in parallel from Frankfurt (`eu-central-1`) and Singapore (`ap-southeast-1`). It required status code 200 and response time below 2,000 ms (`maxResponseTime=2000` and a response-time assertion). TLS verification remained enabled. The check was active during the observation and its alerts were muted to avoid test notifications.
+
+### Matching 31-minute observation
+
+The common measurement window was **2026-09-25T13:00:00Z to 2026-09-25T13:31:00Z**, a real **31 minutes**. The first Checkly result inside it started at 13:00:36.781Z and the last at 13:30:37.174Z. Checkly's final-result API returned 62 results: 31 from each region, all successful and none with an error or failed assertion. Its analytics API, queried with those exact bounds and a 60-minute aggregation interval, returned the following response-time percentiles and 100% availability.
+
+| Checkly location | Final results | Successful | Response time p50 | Response time p95 |
+|---|---:|---:|---:|---:|
+| Frankfurt (`eu-central-1`) | 31 | 31 | 108 ms | 140 ms |
+| Singapore (`ap-southeast-1`) | 31 | 31 | 417 ms | 447 ms |
+| Both regions combined | 62 | 62 | 146 ms | 437 ms |
+
+Prometheus was queried at the same end timestamp with `sum(increase(quicknotes_http_responses_by_code_total{code=~"4..|5.."}[1860s]))`; it returned **0** application HTTP 4xx/5xx responses. The QuickNotes target was `up=1`. QuickNotes exposes request and response counters but no request-duration histogram or summary, so Prometheus cannot calculate real request-latency p50 or p95 from this metric model.
+
+| | Prometheus (inside the Compose net) | Checkly (from 2 regions) |
+|---|---:|---:|
+| Avg latency p50 | Unavailable: no duration metric | 146 ms |
+| Avg latency p95 | Unavailable: no duration metric | 437 ms |
+| Errors observed | 0 HTTP 4xx/5xx responses | 0 failed checks out of 62 |
+
+Checkly measured the public path, including DNS resolution, TLS, the ngrok tunnel, and regional network latency; the Singapore p50 of 417 ms exceeded Frankfurt's 108 ms in this window. Prometheus measured QuickNotes internally and still reported the target UP and zero HTTP errors. An external check can catch public DNS, routing, TLS, or tunnel failures even while the internal scrape succeeds. Conversely, Prometheus exposes application counters and alert state that an external health request cannot inspect. A temporary DNS timeout from this workstation did not appear in Checkly's two-region results, which is why the comparison uses the recorded regional checks rather than that local probe.
