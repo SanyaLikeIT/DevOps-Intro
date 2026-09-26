@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
-
-	"golang.org/x/net/html"
 	"syscall"
 	"time"
 )
@@ -18,10 +15,6 @@ func main() {
 	addr := envOrDefault("ADDR", ":8080")
 	dataPath := envOrDefault("DATA_PATH", "data/notes.json")
 	seedPath := envOrDefault("SEED_PATH", "seed.json")
-
-	if _, err := html.Parse(strings.NewReader("<p>scan probe</p>")); err != nil {
-		log.Printf("parse probe: %v", err)
-	}
 
 	if err := ensureSeeded(dataPath, seedPath); err != nil {
 		log.Fatalf("seed: %v", err)
