@@ -139,3 +139,59 @@ The selected real finding was **10021** on `/notes`; **90004** was also fixed. `
 **f) Strict CSP.** `Content-Security-Policy: default-src 'none'` blocks browser resource loading unless permitted. It can fit a JSON-only API, but would break a normal page with scripts, styles, images, or fonts unless those are explicitly allowed. ZAP did not report missing CSP for this API, so no CSP change was made.
 
 **g) Informational findings.** Blind acceptance can hide genuine data exposure and make the accepted-risk list useless. Each informational alert needs its own context and disposition; here cacheability of notes was addressed, and the after report was checked for the changed behavior.
+
+## Bonus — govulncheck CI Gate
+
+### B.1 Standalone CI job
+
+The existing [Lab 3 workflow](../.github/workflows/ci.yml) now runs on `feature/lab9` pushes as well as its existing `main` push and PR events. Its separate `govulncheck` job runs in `app/`; `ci-ok` requires it alongside vet, test, and lint. The job installs Go 1.24 as specified. Because Go 1.24.13 has reachable standard-library findings in this codebase (15 in the local trial), the job explicitly pins `GOTOOLCHAIN=go1.26.6` for the scanner. This matches the patched compiler used to build the shipped image. The local Go 1.24 trial exited 3 on clean application source, while the Go 1.26.6 trial reported no vulnerabilities. This toolchain choice is explicit in the workflow rather than hiding those baseline findings.
+
+### B.2 Pinned scanner
+
+The job installs `golang.org/x/vuln/cmd/govulncheck@v1.8.0`, a verified published module version, and runs `govulncheck ./...`. Local and Actions version output identified `govulncheck@v1.8.0`. The scanner version and Go toolchain are pinned separately. The vulnerability database at `https://vuln.go.dev` still updates; pinning the binary does not freeze its intelligence.
+
+### B.3 Clean baseline
+
+Locally, the final source passed `go test ./...` and `govulncheck ./...` with `golang:1.26.6-alpine`: `No vulnerabilities found.` The first fully green branch run after fixing the pre-existing healthcheck lint issue was [CI run 36239247767](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36239247767) at commit `c74bc0cd1be73caa35621779d0ca0cc62b035fae`; its `govulncheck` job succeeded. The healthcheck fix checks the `resp.Body.Close()` return value and was a separate signed commit.
+
+### B.4 RED demonstration
+
+- Vulnerable module: `golang.org/x/net@v0.33.0`, temporarily called through `html.Parse` from `quicknotes.main` using a constant harmless HTML string.
+- Representative advisory: [GO-2026-5030](https://pkg.go.dev/vuln/GO-2026-5030). The local scan found eight reachable advisories in that module and exited 3; `go test ./...` passed.
+- Vulnerable signed commit: `ab2b999e87786f0568813f1246b846c3fb594cdc`.
+- [GitHub Actions run 36239333675](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36239333675), workflow `CI`, job `govulncheck`: **failure**. All vet, test, and lint jobs succeeded, isolating the security gate as the cause.
+
+Relevant run log:
+
+```text
+Vulnerability #1: GO-2026-5030
+Found in: golang.org/x/net@v0.33.0
+#1: main.go:22:25: quicknotes.main calls html.Parse
+Your code is affected by 8 vulnerabilities from 1 module.
+Process completed with exit code 3.
+```
+
+### B.5 GREEN demonstration
+
+The temporary call, import, module requirement, and generated `go.sum` were removed by a new commit; RED remains in branch history. After `go mod tidy`, local tests and `govulncheck` passed.
+
+- Repair signed commit: `571d3a696afd8091068ae92be790145d690bda85`.
+- [GitHub Actions run 36239427141](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36239427141), workflow `CI`, job `govulncheck`: **success**. All other jobs and `ci-ok` also succeeded.
+
+Relevant run log:
+
+```text
+Go: go1.26.6
+Scanner: govulncheck@v1.8.0
+No vulnerabilities found.
+```
+
+The final `app/go.mod` contains only `module quicknotes` and `go 1.23`; no `golang.org/x/net` import or temporary call remains in final source.
+
+### B.6 Design questions
+
+**h) Reachability.** A module version can contain a vulnerable function without QuickNotes invoking it. `govulncheck` follows calls from application entry points and reports reachable vulnerable symbols, which narrows triage compared with a version-only list. In RED, the temporary `quicknotes.main` call reached `html.Parse`, and the log included that exact call trace. Removing the call and module restored GREEN.
+
+**i) Scanner pinning.** A fixed scanner release makes tool behavior easier to reproduce, audit, and debug, and avoids surprise CI changes. The scanner version, Go compiler, and vulnerability data source are different inputs: the job pins the first two while the database can gain new advisories over time.
+
+**j) Coverage limits.** `govulncheck` focuses on Go source, modules, vulnerable symbols, and their call reachability. It does not assess OS or base-image packages, non-Go runtime components, Docker/IaC configuration, filesystem secrets, or the complete container image. Trivy remains necessary for those layers.
