@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/lab9]
     paths:
       - 'app/**'
       - '.github/workflows/ci.yml'
@@ -128,9 +128,31 @@ jobs:
         working-directory: .
         run: echo "No lint-relevant app changes in this update; skipping golangci-lint."
 
+  govulncheck:
+    runs-on: ubuntu-24.04
+    env:
+      GOTOOLCHAIN: go1.26.6
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Go 1.24
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.24'
+          cache: true
+          cache-dependency-path: |
+            app/go.mod
+            app/go.sum
+      - name: Install pinned govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - name: Check Go vulnerabilities
+        run: |
+          "$(go env GOPATH)/bin/govulncheck" -version
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
   ci-ok:
     if: ${{ always() }}
-    needs: [vet, test, lint]
+    needs: [vet, test, lint, govulncheck]
     runs-on: ubuntu-24.04
     steps:
       - name: Require all checks to succeed
@@ -139,7 +161,9 @@ jobs:
           VET_RESULT: ${{ needs.vet.result }}
           TEST_RESULT: ${{ needs.test.result }}
           LINT_RESULT: ${{ needs.lint.result }}
+          GOVULNCHECK_RESULT: ${{ needs.govulncheck.result }}
         run: |
           test "$VET_RESULT" = success
           test "$TEST_RESULT" = success
           test "$LINT_RESULT" = success
+          test "$GOVULNCHECK_RESULT" = success
