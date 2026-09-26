@@ -14,7 +14,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	defer resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Fprintf(os.Stderr, "health returned HTTP %d\n", resp.StatusCode)
 		os.Exit(1)
