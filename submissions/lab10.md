@@ -66,7 +66,7 @@ A local build of this Space Dockerfile succeeded. Running that wrapper image on 
 
 ### 2.2 Deployment status
 
-Creating `Sane4ka01/quicknotes-lab10` as a public Docker Space with `cpu-basic` returned HTTP 402. Hugging Face stated that hosting Docker Spaces on free `cpu-basic` requires a PRO subscription for this account. No Space was created; public endpoint, warm latency, and cold-start evidence remain pending.
+Creating `Sane4ka01/quicknotes-lab10` as a public Docker Space with `cpu-basic` returned HTTP 402. Hugging Face stated that hosting Docker Spaces on free `cpu-basic` requires a PRO subscription for this account. Its [Spaces documentation](https://huggingface.co/docs/hub/spaces-overview) confirms that Docker Spaces need a paid plan even though CPU Basic has no hourly charge. No Space was created; public endpoint, warm latency, and cold-start evidence remain pending.
 
 ### 2.3 Design questions
 
