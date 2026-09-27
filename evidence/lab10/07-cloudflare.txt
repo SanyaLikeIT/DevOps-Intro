@@ -1,0 +1,10 @@
+Cloudflare Quick Tunnel attempt, 2026-09-27 UTC.
+Exact local image: ghcr.io/sanyalikeit/devops-intro/quicknotes:v0.1.1
+Local mapping: 127.0.0.1:18081 -> container port 8080. Local /health and /notes returned HTTP 200.
+Command: cloudflared tunnel --url http://127.0.0.1:18081
+cloudflared version: 2026.9.3
+Temporary URL assigned: https://ready-screen-inspection-bottles.trycloudflare.com
+Result: tunnel did not establish an edge connection; the URL was not verified as serving QuickNotes.
+Error: failed to dial to edge with quic: timeout: no recent network activity.
+Precheck: UDP Connectivity failed; TCP Connectivity failed with HTTP/2 connection blocked or unreachable on port 7844.
+The failed process was stopped. Phone cellular verification and 50-run measurements are pending a network change.
