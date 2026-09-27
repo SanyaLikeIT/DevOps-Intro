@@ -12,7 +12,9 @@ done
 docker info >/dev/null
 docker pull "$image"
 
-sudo install -d -m 0755 -o 65532 -g 65532 "$data_dir"
+sudo mkdir -p "$data_dir"
+sudo chown 65532:65532 "$data_dir"
+sudo chmod 0755 "$data_dir"
 
 expected_id=$(docker image inspect --format '{{.Id}}' "$image")
 if docker container inspect "$container" >/dev/null 2>&1; then

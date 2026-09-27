@@ -12,5 +12,5 @@
       "protocol": "http"
     }
   },
-  "postStartCommand": "bash .devcontainer/start-quicknotes.sh"
+  "postStartCommand": "bash /workspaces/DevOps-Intro/.devcontainer/start-quicknotes.sh"
 }
