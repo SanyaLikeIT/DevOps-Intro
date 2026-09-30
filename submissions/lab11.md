@@ -122,4 +122,32 @@ Both `docker build --no-cache` runs completed. Run 1 image ID: `sha256:e02fe2ae0
 
 ## Bonus — CI-Verified Reproducibility
 
-Pending CI workflow and observed RED/GREEN runs.
+### Workflow
+
+The [workflow](../.github/workflows/nix-repro.yml) runs on every push and pull request. `build-a` and `build-b` use separate fresh Ubuntu runners, each building `.#docker` and exporting its actual tarball SHA-256 as a job output. `compare` consumes both outputs and fails on a mismatch. All external actions are pinned to exact commits: `actions/checkout` v7.0.1 (`3d3c42e5aac5ba805825da76410c181273ba90b1`) and `DeterminateSystems/nix-installer-action` v23 (`3138316df39ed29be04236d7ffc686fa525866aa`). The initial [green run](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36758932276) passed before the experiment.
+
+### Deliberate RED experiment
+
+- Commit: `460d2ad11f0486d420148992b1a7c25fe0648b06`
+- [Run 36759194462](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36759194462): `build-a` and `build-b` succeeded; `compare` failed with `Image tarball digests differ`.
+- `build-a`: `4ccc6fe265b5a9ebeb7ff157de3b7c9179bcb5a53d26d8f625f5c147d4727063`
+- `build-b`: `c39cab19e396ea4f96c91830c013b1594c291be1f4efdf7fb8252225ad1c290f`
+
+The temporary change set `dockerTools.buildImage.created = "now"` and delayed `build-b` by 90 seconds. The pinned nixpkgs implementation inserts the current time into the image config when `created` is `"now"`; the resulting real tarballs differed. See [RED evidence](../evidence/lab11/05-ci-red.txt).
+
+### Restored GREEN run
+
+- Fix commit: `fa0f9533444766767ae421040b3482969f7d25ab`
+- [Run 36759605695](https://github.com/SanyaLikeIT/DevOps-Intro/actions/runs/36759605695): all three jobs succeeded; `compare` logged `Image tarball digests match`.
+- `build-a`: `44747a7363fb1ab155ffdcaf368cda6ea93e834d3d90e0fd5e1a821ab5ca0550`
+- `build-b`: `44747a7363fb1ab155ffdcaf368cda6ea93e834d3d90e0fd5e1a821ab5ca0550`
+
+The fix restored `created = "1970-01-01T00:00:01Z"` and removed the temporary delay. See [GREEN evidence](../evidence/lab11/06-ci-green.txt).
+
+### Design questions
+
+**h) Why is CI evidence stronger than a laptop rebuild?** A second laptop build can reuse the same local Nix store, cached derivations, filesystem state, and toolchain. Two fresh hosted runners have separate stores and produce public build logs tied to the exact commit. This is stronger, auditable evidence for a reviewer, though it still shares the declared upstream inputs and runner platform.
+
+**i) Why two jobs?** Running twice within one job can return the same cached store output without rebuilding and shares its environment. Separate runners independently realize the derivation and output a digest, so the comparison checks two actual environments.
+
+**j) Where can timestamps leak?** Generated binaries, tar entries, layer metadata, and image config timestamps can alter byte digests. Nix uses `SOURCE_DATE_EPOCH` when normalizing tar metadata, while this flake fixes the image config creation time explicitly. The RED change to `created = "now"` deliberately bypassed that fixed time; the two image configs and tarballs diverged. Restoring the fixed timestamp removed that source of nondeterminism.
