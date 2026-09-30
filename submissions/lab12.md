@@ -52,3 +52,32 @@ All 50 warm samples for each service and all cold samples are recorded in [Spin 
 **f) Workload fit.** Small stateless HTTP functions, edge handlers, and sandboxed plugins can benefit from a small portable WASM artifact and quick runtime start. Docker remains appropriate when an application needs a full Linux userspace, native dependencies, ordinary process/network behavior, or a long-lived stateful service such as a database. The warm figures here include client startup overhead and show Docker `/health` faster than Spin `/time` on this machine; the endpoints do different work, so these numbers are a practical baseline rather than a pure runtime-only comparison.
 
 **g) Multi-tenant safety.** A component without a preopened directory or outbound-host grant cannot use the normal WASI interfaces to walk the host filesystem or send requests to arbitrary external hosts. This makes filesystem traversal and unauthorized outbound calls harder for an untrusted tenant. Docker namespaces and `--network none` also restrict access, but a container still uses the host Linux kernel syscall surface. Neither isolation model guarantees safety against implementation vulnerabilities.
+
+## Bonus — Standalone WASI with Wasmtime
+
+### Design questions
+
+**h) Bare `wasmtime run` and the Spin handler.** Running `wasmtime run wasm/moscow-time/main.wasm` on this machine exited 0 without JSON output or an HTTP listener. The handler is registered for Spin's HTTP trigger and needs a host to invoke its request interface; a bare command invocation supplies no `/time` request. The separately built CLI module has explicit environment-variable input and stdout output for this invocation model.
+
+**i) What Spin adds.** Wasmtime executes WebAssembly. Spin also reads `spin.toml`, starts the HTTP listener, matches `/time` to the component, invokes the HTTP handler with `wasi-http` integration, manages the component's request lifecycle and possible reuse, and enforces the declared outbound-host policy. No specific instance pooling behavior was assumed in the measured results.
+
+**j) Workload fit.** A short batch transform or isolated hook fits a new `wasmtime run` invocation: inputs can arrive through environment variables or stdin, and the result goes to stdout. A frequently called HTTP API fits Spin's persistent server: it accepts many requests through a stable route without restarting the listener for each request.
+
+### Build, run, and measurements
+
+Source: [wasm-cli/main.go](../wasm-cli/main.go). It reads `REQUEST_METHOD` and `PATH_INFO` and has no Spin SDK dependency. TinyGo 0.42.0 supports the assignment target `wasi`, so the exact build command was `cd wasm-cli && tinygo build -o main.wasm -target=wasi -no-debug ./main.go`. The local module is 188934 bytes (`du -h`: 188K) and is excluded from Git.
+
+Run command: `wasmtime run --env REQUEST_METHOD=GET --env PATH_INFO=/time wasm-cli/main.wasm` using Wasmtime 49.0.1. The validated output was:
+
+```json
+{"unix":1790797360,"iso":"2026-09-30T22:42:40+03:00","hour_minute":"22:42"}
+```
+
+Ten independent `wasmtime run` subprocesses were timed with `time.perf_counter()` from invocation to process exit. Each returned valid JSON with a matching UTC+3 ISO timestamp, epoch, and hour/minute. No warmup was used. Raw samples (ms): 6.348, 4.814, 6.554, 6.435, 5.657, 5.572, 5.849, 5.516, 4.728, 6.502. Median: 5.753 ms. See [Bonus evidence](../evidence/lab12/06-wasmtime-bonus.txt).
+
+| Model | Module size | Cold operation p50 |
+|---|---:|---:|
+| Spin HTTP component | 383835 B (374.839 KiB) | 34.858 ms to start server and first HTTP 200 |
+| Standalone WASI CLI | 188934 B (184.506 KiB) | 5.753 ms for fresh invocation to JSON output |
+
+The standalone module is 194901 bytes smaller. These cold measurements cover different operations: Spin starts a persistent HTTP server and routes requests to a `wasi-http` handler; the standalone module starts a fresh Wasmtime command process for each request-shaped invocation and writes stdout. The CLI is not an HTTP server.
