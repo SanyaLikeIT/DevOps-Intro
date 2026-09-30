@@ -88,20 +88,25 @@ The note survived because normal Codespace stop/start preserved `/workspaces/.qu
 
 ## Bonus — Cloudflare Quick Tunnel
 
-The mandatory Codespaces deployment is complete. The same immutable image was pulled and run locally as `quicknotes-lab10-tunnel`, with container port 8080 mapped to `127.0.0.1:18081`. Local `/health` and `/notes` both returned HTTP 200. Port 8080 on the laptop was already occupied by another QuickNotes service, so the Lab 10 container used the free loopback port 18081 without altering that service.
+The same immutable image `ghcr.io/sanyalikeit/devops-intro/quicknotes:v0.1.1` ran locally as `quicknotes-lab10-tunnel`. Its container port 8080 was mapped to `127.0.0.1:18081` because another local QuickNotes service already occupied host port 8080. The local `/health` and `/notes` endpoints both returned HTTP 200.
 
-A Quick Tunnel attempt assigned `https://ready-screen-inspection-bottles.trycloudflare.com`, but Cloudflare edge registration failed: QUIC timed out and the precheck reported both UDP and TCP/HTTP2 connectivity failures on port 7844. The process was stopped. This URL has **not** been verified as serving QuickNotes; phone cellular verification and 50-run Cloudflare measurements remain pending a network change. [Attempt evidence](../evidence/lab10/07-cloudflare.txt).
+With the VPN enabled and a working endpoint selected, `cloudflared tunnel --protocol http2 --loglevel info --url http://127.0.0.1:18081` registered an edge connection. Its temporary URL was `https://bee-viewers-learning-cover.trycloudflare.com`. Plain laptop `curl` without authentication returned HTTP 200 for [`/health`](https://bee-viewers-learning-cover.trycloudflare.com/health) and [`/notes`](https://bee-viewers-learning-cover.trycloudflare.com/notes). The user also confirmed that `/health` displayed QuickNotes JSON on a phone with Wi-Fi off and mobile data on: `готово — /health открылся`. Earlier VPN endpoints failed to register with Cloudflare; their temporary URLs were not used as success evidence.
 
-### Comparison
+### 50-request comparison
+
+Both warm samples contain 50 consecutive successful public `/health` requests from the laptop. Percentiles use the same nearest-rank method on sorted values, with one-based index `ceil(p*n)`. The [raw Cloudflare samples and connection evidence](../evidence/lab10/07-cloudflare.txt) and [raw Codespaces samples](../evidence/lab10/04-codespace-latency.txt) are preserved.
 
 | Metric | GitHub Codespaces | Cloudflare Quick Tunnel |
 |---|---:|---:|
-| Warm p50, 50 requests | 0.431468 s | pending connected tunnel |
-| Warm p95, 50 requests | 0.689285 s | pending connected tunnel |
+| Warm p50 | 0.431468 s | 0.302855 s |
+| Warm p95 | 0.689285 s | 1.301399 s |
+| Warm min / max | 0.386738 / 0.960635 s | 0.230481 / 15.260199 s |
 | Manual cold start | 49.013 / 97.702 / 179.437 s | N/A for continuously running local process |
 | Public URL stability | stable while Codespace and public port exist | temporary URL changes on restart |
 | Compute location | GitHub cloud VM | local laptop |
 | Cost in this lab | included personal quota | free Quick Tunnel |
+
+The Tunnel sample's typical response was 0.128613 s faster at p50, while its p95 was 0.612114 s slower. One Tunnel request took 15.260199 s. These end-to-end samples show variability but do not identify which internal network segment caused it.
 
 ### Design questions
 
@@ -111,7 +116,7 @@ For Codespaces, a client reaches GitHub's forwarded-port infrastructure, then th
 
 #### h) Warm latency contributors
 
-The measured Codespaces 50-request sample had p50 0.431468 s and p95 0.689285 s. Potential contributors are client network RTT, GitHub's forwarded-port proxy, the VM, and QuickNotes. These end-to-end timings do not isolate any layer as dominant. Cloudflare measurements are pending a working edge connection; likely contributors would include the path to Cloudflare's edge, edge-to-tunnel routing, the laptop uplink, and QuickNotes. No claim about a dominant Cloudflare layer can be made yet.
+Codespaces measured p50 0.431468 s and p95 0.689285 s. Potential contributors are client network RTT, GitHub's forwarded-port proxy, the VM, and QuickNotes. Cloudflare measured p50 0.302855 s and p95 1.301399 s, with a 15.260199 s maximum. Potential contributors there are the path to Cloudflare's edge, edge-to-tunnel routing over the VPN, the laptop uplink, and QuickNotes. The measurements were end-to-end; no individual layer was isolated as dominant. The Cloudflare tail suggests occasional path or service delay, but these data alone cannot assign it to a specific component.
 
 #### i) Appropriate use of Cloudflare Tunnel
 

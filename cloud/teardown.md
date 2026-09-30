@@ -13,7 +13,7 @@ The earlier setup Codespace `quicknotes-lab10-x5r7p5x9wwg3vjrp` is already stopp
 
 ## Cloudflare
 
-Stop the `cloudflared tunnel --url http://127.0.0.1:18081` process after the bonus measurements. A Quick Tunnel URL expires when the process stops.
+Stop the `cloudflared tunnel --protocol http2 --url http://127.0.0.1:18081` process after the bonus measurements. A Quick Tunnel URL expires when the process stops.
 
 ## Local Docker
 
