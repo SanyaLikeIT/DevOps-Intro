@@ -23,7 +23,7 @@
       docker = pkgs.dockerTools.buildImage {
         name = "quicknotes-nix";
         tag = "lab11";
-        created = "1970-01-01T00:00:01Z";
+        created = "now";
         copyToRoot = imageRoot;
         config = {
           User = "65532:65532";
