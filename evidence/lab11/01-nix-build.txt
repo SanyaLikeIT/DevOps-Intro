@@ -9,3 +9,5 @@ vendorHash: null; app/go.mod has no external modules. Initial fakeHash build fai
 Runtime command: ADDR=127.0.0.1:18080 DATA_PATH=/tmp/lab11-notes.json SEED_PATH=/tmp/lab11-no-seed.json ./result/bin/quicknotes
 GET http://127.0.0.1:18080/health: HTTP/1.1 200 OK; {"notes":0,"status":"ok"}
 Port 8080 was already occupied on the host, so direct binary verification used 18080.
+DevShell: go1.25.10 linux/amd64; gopls v0.20.0; golangci-lint 2.6.2.
+Tests in Nix devShell: go test ./... -> quicknotes ok; quicknotes/cmd/healthcheck has no test files.
